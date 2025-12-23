@@ -379,13 +379,15 @@
             background: var(--color-bg-tertiary);
             border-radius: var(--radius-sm);
             font-family: 'JetBrains Mono', monospace;
-            font-size: 10px;
+            font-size: 11px;
             color: var(--color-text-secondary);
             white-space: pre-wrap;
             word-break: break-all;
-            max-height: 300px;
+            max-height: 500px;
             overflow-y: auto;
             display: none;
+            cursor: text;
+            user-select: text;
         }
 
         .log-entry.expanded .log-details { display: block; }
@@ -616,7 +618,8 @@ claude`;
 
                     let details = '';
                     if (log.request || log.response) {
-                        details = '<div class="log-details">';
+                        // onclick stops propagation so clicking details doesn't collapse the log
+                        details = '<div class="log-details" onclick="event.stopPropagation()">';
                         if (log.request) {
                             details += '<strong>Request:</strong>\n' + JSON.stringify(log.request, null, 2);
                         }
