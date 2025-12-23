@@ -1,10 +1,13 @@
 # Environment
-.env
+src/.env
 venv/
 .venv/
 __pycache__/
 *.pyc
 *.pyo
+
+# Development scripts (keep locally, don't share)
+run-dev.sh
 
 # IDE
 .vscode/

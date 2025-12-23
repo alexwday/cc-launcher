@@ -3,8 +3,9 @@
 import os
 import sys
 import subprocess
+import shutil
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +19,67 @@ class ProcessManager:
         self.working_directory: Optional[str] = None
         self._launched = False
 
-    def launch_claude_code(self, working_directory: Optional[str] = None):
+    def _is_claude_installed(self) -> bool:
+        """Check if Claude Code CLI is installed."""
+        return shutil.which('claude') is not None
+
+    def _install_claude_code(self) -> Tuple[bool, str]:
+        """
+        Attempt to install Claude Code via npm.
+
+        Returns:
+            Tuple of (success, message)
+        """
+        # Check if npm is available
+        if not shutil.which('npm'):
+            return False, "npm not found. Please install Node.js first: https://nodejs.org/"
+
+        logger.info("Installing Claude Code via npm...")
+
+        try:
+            # Run npm install globally
+            result = subprocess.run(
+                ['npm', 'install', '-g', '@anthropic-ai/claude-code'],
+                capture_output=True,
+                text=True,
+                timeout=120  # 2 minute timeout
+            )
+
+            if result.returncode == 0:
+                logger.info("Claude Code installed successfully")
+                return True, "Claude Code installed successfully"
+            else:
+                error_msg = result.stderr.strip() or result.stdout.strip()
+                # Common error: permission denied
+                if 'EACCES' in error_msg or 'permission denied' in error_msg.lower():
+                    return False, "Permission denied. Try running: sudo npm install -g @anthropic-ai/claude-code"
+                return False, f"npm install failed: {error_msg[:200]}"
+
+        except subprocess.TimeoutExpired:
+            return False, "Installation timed out. Please install manually: npm install -g @anthropic-ai/claude-code"
+        except Exception as e:
+            return False, f"Installation failed: {str(e)}"
+
+    def launch_claude_code(self, working_directory: Optional[str] = None) -> Tuple[bool, str]:
         """
         Launch Claude Code in an external terminal.
 
         Args:
             working_directory: Directory to start Claude Code in (defaults to home)
+
+        Returns:
+            Tuple of (success, message)
         """
+        # Check if Claude Code is installed
+        if not self._is_claude_installed():
+            logger.info("Claude Code not found, attempting installation...")
+            success, msg = self._install_claude_code()
+            if not success:
+                return False, msg
+            # Verify installation worked
+            if not self._is_claude_installed():
+                return False, "Installation completed but 'claude' command not found. You may need to restart your terminal or add npm global bin to PATH."
+
         self.working_directory = working_directory or os.path.expanduser('~')
 
         # Build environment with proxy settings
@@ -40,16 +95,20 @@ class ProcessManager:
         logger.info(f"  ANTHROPIC_BASE_URL={env['ANTHROPIC_BASE_URL']}")
         logger.info(f"  ANTHROPIC_AUTH_TOKEN={self.proxy_token[:20]}...")
 
-        if sys.platform == 'darwin':
-            self._launch_macos(env)
-        elif sys.platform == 'linux':
-            self._launch_linux(env)
-        elif sys.platform == 'win32':
-            self._launch_windows(env)
-        else:
-            raise RuntimeError(f"Unsupported platform: {sys.platform}")
+        try:
+            if sys.platform == 'darwin':
+                self._launch_macos(env)
+            elif sys.platform == 'linux':
+                self._launch_linux(env)
+            elif sys.platform == 'win32':
+                self._launch_windows(env)
+            else:
+                return False, f"Unsupported platform: {sys.platform}"
+        except RuntimeError as e:
+            return False, str(e)
 
         self._launched = True
+        return True, "Claude Code launched successfully"
 
     def _launch_macos(self, env: dict):
         """Launch in macOS Terminal.app."""

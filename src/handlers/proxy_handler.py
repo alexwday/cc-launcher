@@ -99,12 +99,13 @@ def messages():
     # Placeholder mode - return mock response
     if config.use_placeholder_mode:
         if is_streaming:
-            return _handle_placeholder_stream(original_model, anthropic_request, start_time, log_manager)
+            return _handle_placeholder_stream(original_model, anthropic_request, start_time, log_manager, config)
         else:
             response = build_placeholder_response(original_model)
             duration_ms = int((time.time() - start_time) * 1000)
+            cost = config.calculate_cost(original_model, 100, 20)
             log_manager.log_api_call('POST', '/v1/messages', 200, duration_ms, anthropic_request, response,
-                                    input_tokens=100, output_tokens=20)
+                                    input_tokens=100, output_tokens=20, cost_usd=cost)
             return jsonify(response), 200
 
     # Translate request to OpenAI format
@@ -221,14 +222,18 @@ def _handle_non_streaming(target_url, openai_request, headers, original_model,
 
     anthropic_response = translate_response(openai_response, original_model)
 
-    # Log with token usage
+    # Log with token usage and cost
     usage = anthropic_response.get('usage', {})
+    input_tokens = usage.get('input_tokens', 0)
+    output_tokens = usage.get('output_tokens', 0)
+    cost = config.calculate_cost(original_model, input_tokens, output_tokens)
     log_manager.log_api_call('POST', '/v1/messages', 200, duration_ms, anthropic_request, anthropic_response,
-                            input_tokens=usage.get('input_tokens', 0),
-                            output_tokens=usage.get('output_tokens', 0))
+                            input_tokens=input_tokens,
+                            output_tokens=output_tokens,
+                            cost_usd=cost)
 
     logger.info(f"<- stop_reason={anthropic_response.get('stop_reason')} | "
-                f"tokens={usage.get('input_tokens', 0)}+{usage.get('output_tokens', 0)}")
+                f"tokens={input_tokens}+{output_tokens} | cost=${cost:.4f}")
 
     return jsonify(anthropic_response), 200
 
@@ -236,6 +241,9 @@ def _handle_non_streaming(target_url, openai_request, headers, original_model,
 def _handle_streaming(target_url, openai_request, headers, original_model,
                       anthropic_request, start_time, config, log_manager):
     """Handle streaming request/response."""
+    import threading
+    import queue
+
     logger.info(f"Sending streaming request to {target_url}")
 
     try:
@@ -270,41 +278,82 @@ def _handle_streaming(target_url, openai_request, headers, original_model,
                                 anthropic_request, anthropic_error)
         return jsonify(anthropic_error), response.status_code
 
-    # Stream translator
+    # Stream translator - will emit early events
     translator = StreamTranslator(original_model)
 
     def generate():
         chunk_count = 0
+        content_started = False
+        stop_pings = threading.Event()
+        ping_queue = queue.Queue()
+
+        def ping_sender():
+            """Send ping events every 1.5 seconds until content starts or stream ends."""
+            import time as time_module
+            while not stop_pings.is_set():
+                if stop_pings.wait(timeout=1.5):
+                    break
+                if not content_started and not stop_pings.is_set():
+                    ping_queue.put(b'event: ping\ndata: {"type": "ping"}\n\n')
+
+        ping_thread = threading.Thread(target=ping_sender, daemon=True)
+
         try:
+            # Emit message_start and content_block_start IMMEDIATELY
+            # This prevents Claude Code from timing out while waiting for OpenAI
+            early_events = translator.emit_early_stream_start()
+            for event in early_events:
+                yield event.encode('utf-8')
+
+            # Start sending pings while we wait for content
+            ping_thread.start()
+
             for chunk in response.iter_lines():
+                # Check for pending pings and yield them
+                while not ping_queue.empty():
+                    try:
+                        ping = ping_queue.get_nowait()
+                        yield ping
+                    except queue.Empty:
+                        break
+
                 if chunk:
                     chunk_count += 1
+                    content_started = True
+                    stop_pings.set()  # Stop ping sender once content arrives
+
                     # Log first few chunks for debugging
                     if chunk_count <= 3:
                         logger.debug(f"Received chunk {chunk_count}: {chunk[:200]}")
+
                     # Translate OpenAI chunk to Anthropic events
-                    # translator handles message_start on first content automatically
                     events = translator.translate_chunk(chunk)
                     for event in events:
                         yield event.encode('utf-8')
 
-            # Log completion
+            # Stop pings and log completion with cost
+            stop_pings.set()
             duration_ms = int((time.time() - start_time) * 1000)
             usage = translator.get_usage()
+            input_tokens = usage.get('input_tokens', 0)
+            output_tokens = usage.get('output_tokens', 0)
+            cost = config.calculate_cost(original_model, input_tokens, output_tokens)
             log_manager.log_api_call('POST', '/v1/messages', 200, duration_ms,
                                     anthropic_request, {'streaming': True},
-                                    input_tokens=usage.get('input_tokens', 0),
-                                    output_tokens=usage.get('output_tokens', 0))
+                                    input_tokens=input_tokens,
+                                    output_tokens=output_tokens,
+                                    cost_usd=cost)
 
-            logger.info(f"<- stream complete | tokens={usage.get('input_tokens', 0)}+{usage.get('output_tokens', 0)}")
+            logger.info(f"<- stream complete | tokens={input_tokens}+{output_tokens} | cost=${cost:.4f}")
 
         except GeneratorExit:
             # This is normal - Claude Code may disconnect streams it no longer needs
-            # (e.g., parallel requests where only one response is used)
+            stop_pings.set()
             logger.debug("Client disconnected during stream (normal if parallel requests)")
         except Exception as e:
             import json
             import traceback
+            stop_pings.set()
             tb = traceback.format_exc()
             logger.error(f"Streaming error: {e}")
             logger.error(tb)
@@ -323,6 +372,7 @@ def _handle_streaming(target_url, openai_request, headers, original_model,
             error_event = f"event: error\ndata: {json.dumps(error_data)}\n\n"
             yield error_event.encode('utf-8')
         finally:
+            stop_pings.set()
             response.close()
 
     return Response(
@@ -336,16 +386,17 @@ def _handle_streaming(target_url, openai_request, headers, original_model,
     ), 200
 
 
-def _handle_placeholder_stream(original_model, anthropic_request, start_time, log_manager):
+def _handle_placeholder_stream(original_model, anthropic_request, start_time, log_manager, config):
     """Handle placeholder streaming response."""
     def generate():
         for event in generate_placeholder_stream(original_model):
             yield event.encode('utf-8')
 
         duration_ms = int((time.time() - start_time) * 1000)
+        cost = config.calculate_cost(original_model, 100, 20)
         log_manager.log_api_call('POST', '/v1/messages', 200, duration_ms,
                                 anthropic_request, {'streaming': True, 'placeholder': True},
-                                input_tokens=100, output_tokens=20)
+                                input_tokens=100, output_tokens=20, cost_usd=cost)
 
     return Response(
         stream_with_context(generate()),

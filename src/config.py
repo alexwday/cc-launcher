@@ -25,6 +25,22 @@ class Config:
         self.model_mapping = self._parse_model_mapping(os.getenv('MODEL_MAPPING', ''))
         self.default_max_tokens = int(os.getenv('DEFAULT_MAX_TOKENS', '16384'))
 
+        # Token pricing (cost per million tokens in USD)
+        self.token_pricing = {
+            'opus': {
+                'prompt': float(os.getenv('OPUS_PROMPT_COST_PER_MTK', '15.00')),
+                'completion': float(os.getenv('OPUS_COMPLETION_COST_PER_MTK', '75.00')),
+            },
+            'sonnet': {
+                'prompt': float(os.getenv('SONNET_PROMPT_COST_PER_MTK', '3.00')),
+                'completion': float(os.getenv('SONNET_COMPLETION_COST_PER_MTK', '15.00')),
+            },
+            'haiku': {
+                'prompt': float(os.getenv('HAIKU_PROMPT_COST_PER_MTK', '0.25')),
+                'completion': float(os.getenv('HAIKU_COMPLETION_COST_PER_MTK', '1.25')),
+            },
+        }
+
         # OAuth settings
         self.oauth_token_endpoint = os.getenv('OAUTH_TOKEN_ENDPOINT')
         self.oauth_client_id = os.getenv('OAUTH_CLIENT_ID')
@@ -101,6 +117,35 @@ class Config:
         """Generate a random access token."""
         return f"cc-launcher-{secrets.token_hex(32)}"
 
+    def calculate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
+        """
+        Calculate cost in USD for a given model and token count.
+
+        Args:
+            model: The model name (will be matched to opus/sonnet/haiku)
+            input_tokens: Number of input/prompt tokens
+            output_tokens: Number of output/completion tokens
+
+        Returns:
+            Cost in USD
+        """
+        model_lower = model.lower()
+
+        # Determine which pricing tier to use
+        if 'opus' in model_lower:
+            pricing = self.token_pricing['opus']
+        elif 'haiku' in model_lower:
+            pricing = self.token_pricing['haiku']
+        else:
+            # Default to sonnet pricing
+            pricing = self.token_pricing['sonnet']
+
+        # Cost = (tokens / 1,000,000) * cost_per_million
+        prompt_cost = (input_tokens / 1_000_000) * pricing['prompt']
+        completion_cost = (output_tokens / 1_000_000) * pricing['completion']
+
+        return prompt_cost + completion_cost
+
     def is_oauth_configured(self) -> bool:
         """Check if OAuth is configured."""
         return bool(
@@ -131,6 +176,7 @@ class Config:
             'api_key_configured': self.is_api_key_configured(),
             'dev_mode': self.dev_mode,
             'ssl_enabled': self.ssl_enabled,
+            'token_pricing': self.token_pricing,
         }
 
 

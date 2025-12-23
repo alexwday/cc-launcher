@@ -49,6 +49,32 @@ class StreamTranslator:
     def __init__(self, original_model: str = 'claude-sonnet-4-20250514'):
         self.state = StreamState(model=original_model)
 
+    def emit_early_stream_start(self) -> List[str]:
+        """
+        Emit message_start and content_block_start events immediately.
+
+        This should be called BEFORE waiting for OpenAI chunks to prevent
+        Claude Code from timing out. The real Anthropic API sends these
+        events immediately upon connection, followed by ping events while
+        waiting for content generation.
+
+        Returns:
+            List of SSE event strings for message_start and content_block_start
+        """
+        events = []
+
+        # Emit message_start
+        events.append(self._emit_message_start())
+        self.state.message_started = True
+
+        # Emit content_block_start for initial text block
+        events.append(self._emit_content_block_start('text'))
+        self.state.content_block_started = True
+        self.state.current_block_type = 'text'
+
+        logger.debug("Emitted early message_start and content_block_start")
+        return events
+
     def translate_chunk(self, openai_chunk: bytes) -> List[str]:
         """
         Translate a single OpenAI SSE chunk to Anthropic SSE events.
@@ -347,6 +373,9 @@ def generate_placeholder_stream(
 
     # content_block_start
     yield f"event: content_block_start\ndata: {json.dumps({'type': 'content_block_start', 'index': 0, 'content_block': {'type': 'text', 'text': ''}})}\n\n"
+
+    # ping event (like real Anthropic API)
+    yield 'event: ping\ndata: {"type": "ping"}\n\n'
 
     # content_block_delta - stream word by word
     words = content.split()

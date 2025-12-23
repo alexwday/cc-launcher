@@ -1,5 +1,6 @@
 """Dashboard API endpoints for cc-launcher."""
 
+import os
 import logging
 from flask import Blueprint, request, jsonify
 
@@ -138,19 +139,19 @@ def launch_claude():
     data = request.get_json() or {}
     working_directory = data.get('workingDirectory')
 
-    try:
-        process_manager.launch_claude_code(working_directory)
+    success, message = process_manager.launch_claude_code(working_directory)
+
+    if success:
         log_manager = get_log_manager()
         log_manager.log_server_event('info', f'Claude Code launched in {working_directory or "home directory"}')
-
         return jsonify({
             'success': True,
-            'message': 'Claude Code launched',
+            'message': message,
             'workingDirectory': process_manager.working_directory
         })
-    except Exception as e:
-        logger.error(f"Failed to launch Claude Code: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+    else:
+        logger.error(f"Failed to launch Claude Code: {message}")
+        return jsonify({'success': False, 'error': message}), 400
 
 
 @dashboard_bp.route('/api/claude/status', methods=['GET'])
@@ -165,6 +166,53 @@ def claude_status():
         'launched': process_manager.is_claude_running(),
         'workingDirectory': process_manager.working_directory,
     })
+
+
+@dashboard_bp.route('/api/browse', methods=['GET'])
+def browse_directories():
+    """Browse directories for working directory selection."""
+    path = request.args.get('path', os.path.expanduser('~'))
+
+    # Expand user home directory
+    path = os.path.expanduser(path)
+
+    # Security: ensure path exists and is a directory
+    if not os.path.exists(path):
+        return jsonify({'error': 'Path does not exist', 'path': path}), 404
+
+    if not os.path.isdir(path):
+        # If it's a file, return the parent directory
+        path = os.path.dirname(path)
+
+    try:
+        items = []
+        for name in sorted(os.listdir(path)):
+            full_path = os.path.join(path, name)
+            # Skip hidden files/dirs (starting with .) and system dirs
+            if name.startswith('.'):
+                continue
+            try:
+                is_dir = os.path.isdir(full_path)
+                items.append({
+                    'name': name,
+                    'path': full_path,
+                    'isDirectory': is_dir,
+                })
+            except PermissionError:
+                continue
+
+        # Sort directories first, then files
+        items.sort(key=lambda x: (not x['isDirectory'], x['name'].lower()))
+
+        return jsonify({
+            'currentPath': path,
+            'parentPath': os.path.dirname(path) if path != '/' else None,
+            'items': items,
+        })
+    except PermissionError:
+        return jsonify({'error': 'Permission denied', 'path': path}), 403
+    except Exception as e:
+        return jsonify({'error': str(e), 'path': path}), 500
 
 
 @dashboard_bp.route('/health', methods=['GET'])

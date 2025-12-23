@@ -12,8 +12,11 @@ from flask import Flask, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Get the src directory (where this file lives)
+SRC_DIR = Path(__file__).parent.resolve()
+
+# Load environment variables from .env file in src/
+load_dotenv(SRC_DIR / '.env')
 
 # Configure logging
 logging.basicConfig(
@@ -32,7 +35,7 @@ from handlers import proxy_bp, dashboard_bp, ProcessManager
 
 def create_app() -> Flask:
     """Create and configure the Flask application."""
-    app = Flask(__name__, template_folder='templates')
+    app = Flask(__name__, template_folder=str(SRC_DIR / 'templates'))
     CORS(app)
 
     # Load configuration
@@ -84,7 +87,7 @@ def create_app() -> Flask:
     # Dashboard route
     @app.route('/')
     def dashboard():
-        return send_from_directory('templates', 'index.html')
+        return send_from_directory(SRC_DIR / 'templates', 'index.html')
 
     # Log startup info
     log_manager.log_server_event('info', 'CC-Launcher started', {

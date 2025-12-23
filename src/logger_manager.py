@@ -18,6 +18,7 @@ class UsageStats:
     total_input_tokens: int = 0
     total_output_tokens: int = 0
     total_latency_ms: int = 0
+    total_cost_usd: float = 0.0
     session_start: float = field(default_factory=time.time)
 
     @property
@@ -47,6 +48,7 @@ class UsageStats:
             'total_tokens': self.total_input_tokens + self.total_output_tokens,
             'avg_latency_ms': round(self.avg_latency_ms, 0),
             'session_duration_seconds': round(self.session_duration_seconds, 0),
+            'total_cost_usd': round(self.total_cost_usd, 4),
         }
 
 
@@ -68,7 +70,8 @@ class LoggerManager:
         request_data: Optional[Dict] = None,
         response_data: Optional[Dict] = None,
         input_tokens: int = 0,
-        output_tokens: int = 0
+        output_tokens: int = 0,
+        cost_usd: float = 0.0
     ):
         """Log an API call with optional request/response data."""
         entry = {
@@ -81,6 +84,7 @@ class LoggerManager:
             'response': self._sanitize_for_log(response_data),
             'input_tokens': input_tokens,
             'output_tokens': output_tokens,
+            'cost_usd': cost_usd,
         }
 
         self.api_calls.appendleft(entry)
@@ -92,13 +96,15 @@ class LoggerManager:
             self.usage.total_latency_ms += duration_ms
             self.usage.total_input_tokens += input_tokens
             self.usage.total_output_tokens += output_tokens
+            self.usage.total_cost_usd += cost_usd
         else:
             self.usage.failed_requests += 1
 
         # Log summary
         token_info = ""
         if input_tokens or output_tokens:
-            token_info = f" | tokens: {input_tokens}+{output_tokens}"
+            cost_str = f"${cost_usd:.4f}" if cost_usd > 0 else ""
+            token_info = f" | tokens: {input_tokens}+{output_tokens}" + (f" ({cost_str})" if cost_str else "")
         logger.info(f"{method} {path} -> {status} ({duration_ms}ms){token_info}")
 
     def log_server_event(self, level: str, message: str, data: Optional[Dict] = None):

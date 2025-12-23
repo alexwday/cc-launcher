@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CC-Launcher</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-bg: #f8f9fa;
+            --color-surface: #ffffff;
+            --color-surface-alt: #f3f4f6;
+            --color-border: #e5e7eb;
+            --color-border-light: #f0f0f0;
+            --color-text: #111827;
+            --color-text-secondary: #6b7280;
+            --color-text-muted: #9ca3af;
+            --color-accent: #4f46e5;
+            --color-accent-light: #eef2ff;
+            --color-success: #059669;
+            --color-success-light: #ecfdf5;
+            --color-warning: #d97706;
+            --color-error: #dc2626;
+            --color-error-light: #fef2f2;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
+            --shadow-lg: 0 4px 16px rgba(0,0,0,0.08);
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --font-mono: 'JetBrains Mono', 'SF Mono', Monaco, monospace;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--color-bg);
+            color: var(--color-text);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo {
+            width: 36px;
+            height: 36px;
+            background: var(--color-accent);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 13px;
+            color: white;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-text h1 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--color-text);
+        }
+
+        .logo-text .tagline {
+            font-size: 12px;
+            color: var(--color-text-muted);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            background: var(--color-success-light);
+            border-radius: 100px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--color-success);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--color-success);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Summary Grid */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 1024px) {
+            .summary-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 640px) {
+            .summary-grid { grid-template-columns: 1fr; }
+        }
+
+        .card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 14px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--color-border-light);
+        }
+
+        .card-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: var(--color-text-secondary);
+        }
+
+        .card-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--color-text);
+        }
+
+        /* Config Card */
+        .config-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .config-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+        }
+
+        .config-label {
+            color: var(--color-text-secondary);
+        }
+
+        .config-value {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--color-text);
+            background: var(--color-surface-alt);
+            padding: 2px 6px;
+            border-radius: 4px;
+            max-width: 160px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .token-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--color-border-light);
+        }
+
+        .token-display {
+            flex: 1;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--color-text-muted);
+            background: var(--color-surface-alt);
+            padding: 6px 8px;
+            border-radius: var(--radius-sm);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Usage Card */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .stat-item {
+            padding: 10px;
+            background: var(--color-surface-alt);
+            border-radius: var(--radius-sm);
+        }
+
+        .stat-label {
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            color: var(--color-text-muted);
+            margin-bottom: 2px;
+        }
+
+        .stat-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--color-text);
+        }
+
+        .stat-value.accent { color: var(--color-accent); }
+        .stat-value.success { color: var(--color-success); }
+
+        .cost-display {
+            grid-column: span 2;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            background: var(--color-accent-light);
+            border-radius: var(--radius-sm);
+            margin-top: 4px;
+        }
+
+        .cost-label {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--color-accent);
+        }
+
+        .cost-value {
+            font-family: var(--font-mono);
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--color-accent);
+        }
+
+        /* Launch Card */
+        .launch-section {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .input-group label {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--color-text-secondary);
+        }
+
+        .input-row {
+            display: flex;
+            gap: 6px;
+        }
+
+        .input-row input {
+            flex: 1;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-sm);
+            padding: 8px 10px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--color-text);
+        }
+
+        .input-row input:focus {
+            outline: none;
+            border-color: var(--color-accent);
+            box-shadow: 0 0 0 3px var(--color-accent-light);
+        }
+
+        .input-row input::placeholder {
+            color: var(--color-text-muted);
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 7px 12px;
+            border-radius: var(--radius-sm);
+            font-family: 'Inter', sans-serif;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            border: none;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: var(--color-accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #4338ca;
+        }
+
+        .btn-secondary {
+            background: var(--color-surface);
+            color: var(--color-text);
+            border: 1px solid var(--color-border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--color-surface-alt);
+        }
+
+        .btn-success {
+            background: var(--color-success);
+            color: white;
+            padding: 8px 16px;
+        }
+
+        .btn-success:hover {
+            background: #047857;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--color-text-secondary);
+            padding: 6px 10px;
+        }
+
+        .btn-ghost:hover {
+            background: var(--color-surface-alt);
+            color: var(--color-text);
+        }
+
+        .btn-sm {
+            padding: 5px 8px;
+            font-size: 11px;
+        }
+
+        /* Activity Monitor */
+        .activity-section {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .activity-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--color-border);
+            background: var(--color-surface);
+        }
+
+        .activity-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .activity-title h2 {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .activity-title .badge {
+            font-size: 10px;
+            font-weight: 500;
+            padding: 2px 8px;
+            background: var(--color-accent-light);
+            color: var(--color-accent);
+            border-radius: 100px;
+        }
+
+        .activity-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        .log-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--color-border-light);
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-entry:hover {
+            background: var(--color-surface-alt);
+        }
+
+        .log-time {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--color-text-muted);
+            white-space: nowrap;
+            min-width: 70px;
+        }
+
+        .log-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .log-main {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .log-method {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 600;
+            padding: 1px 5px;
+            border-radius: 3px;
+            background: var(--color-accent-light);
+            color: var(--color-accent);
+        }
+
+        .log-path {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--color-text);
+        }
+
+        .log-status {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 600;
+            padding: 1px 5px;
+            border-radius: 3px;
+        }
+
+        .log-status.success {
+            background: var(--color-success-light);
+            color: var(--color-success);
+        }
+
+        .log-status.error {
+            background: var(--color-error-light);
+            color: var(--color-error);
+        }
+
+        .log-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-left: auto;
+        }
+
+        .log-tokens {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--color-accent);
+        }
+
+        .log-cost {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--color-success);
+            font-weight: 500;
+        }
+
+        .log-duration {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--color-text-muted);
+        }
+
+        .log-details {
+            margin-top: 10px;
+            padding: 10px;
+            background: var(--color-surface-alt);
+            border-radius: var(--radius-sm);
+            font-family: var(--font-mono);
+            font-size: 10px;
+            line-height: 1.5;
+            color: var(--color-text-secondary);
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .log-entry.expanded .log-details {
+            display: block;
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 48px 20px;
+            color: var(--color-text-muted);
+        }
+
+        .empty-icon {
+            font-size: 28px;
+            opacity: 0.4;
+            margin-bottom: 8px;
+        }
+
+        .empty-text {
+            font-size: 13px;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.4);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(2px);
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            width: 100%;
+            max-width: 500px;
+            max-height: 70vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .modal-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--color-text-muted);
+            cursor: pointer;
+            font-size: 18px;
+            padding: 4px;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: var(--color-text);
+        }
+
+        .modal-path {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: var(--color-surface-alt);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .modal-path input {
+            flex: 1;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-sm);
+            padding: 6px 10px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--color-text);
+        }
+
+        .modal-content {
+            flex: 1;
+            overflow-y: auto;
+            max-height: 300px;
+        }
+
+        .browse-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background 0.1s;
+            border-bottom: 1px solid var(--color-border-light);
+            font-size: 13px;
+        }
+
+        .browse-item:hover {
+            background: var(--color-surface-alt);
+        }
+
+        .browse-item.parent {
+            color: var(--color-text-muted);
+        }
+
+        .browse-icon {
+            font-size: 14px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            padding: 12px 16px;
+            border-top: 1px solid var(--color-border);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--color-border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--color-text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo-section">
+                <div class="logo">CC</div>
+                <div class="logo-text">
+                    <h1>CC-Launcher</h1>
+                    <div class="tagline">Claude Code Proxy</div>
+                </div>
+            </div>
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span>Active</span>
+            </div>
+        </header>
+
+        <!-- Summary Grid -->
+        <div class="summary-grid">
+            <!-- Proxy Configuration -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">&#9881;</div>
+                    <span class="card-title">Configuration</span>
+                </div>
+                <div class="config-grid">
+                    <div class="config-row">
+                        <span class="config-label">Proxy URL</span>
+                        <span class="config-value" id="proxyUrl">-</span>
+                    </div>
+                    <div class="config-row">
+                        <span class="config-label">Target</span>
+                        <span class="config-value" id="targetEndpoint">-</span>
+                    </div>
+                    <div class="config-row">
+                        <span class="config-label">Mode</span>
+                        <span class="config-value" id="proxyMode">-</span>
+                    </div>
+                    <div class="config-row">
+                        <span class="config-label">Auth</span>
+                        <span class="config-value" id="authType">-</span>
+                    </div>
+                </div>
+                <div class="token-row">
+                    <span class="token-display" id="accessTokenDisplay">-</span>
+                    <button class="btn btn-secondary btn-sm" onclick="copyToken()">Copy</button>
+                </div>
+            </div>
+
+            <!-- Usage Summary -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">&#128200;</div>
+                    <span class="card-title">Usage</span>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Requests</div>
+                        <div class="stat-value" id="totalRequests">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Success</div>
+                        <div class="stat-value success" id="successRate">100%</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Tokens</div>
+                        <div class="stat-value" id="totalTokens">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Latency</div>
+                        <div class="stat-value" id="avgLatency">0ms</div>
+                    </div>
+                    <div class="cost-display">
+                        <span class="cost-label">Total Cost</span>
+                        <span class="cost-value" id="totalCost">$0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Launch Claude Code -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">&#9654;</div>
+                    <span class="card-title">Launch</span>
+                </div>
+                <div class="launch-section">
+                    <div class="input-group">
+                        <label for="workingDir">Working Directory</label>
+                        <div class="input-row">
+                            <input type="text" id="workingDir" placeholder="~/Projects/my-project">
+                            <button class="btn btn-secondary btn-sm" onclick="openBrowseModal()">Browse</button>
+                        </div>
+                    </div>
+                    <button class="btn btn-success" onclick="launchClaude()">Launch Claude Code</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Monitor -->
+        <div class="activity-section">
+            <div class="activity-header">
+                <div class="activity-title">
+                    <h2>Activity</h2>
+                    <span class="badge" id="logCount">0</span>
+                </div>
+                <div class="activity-actions">
+                    <button class="btn btn-ghost btn-sm" onclick="refreshLogs()">Refresh</button>
+                    <button class="btn btn-ghost btn-sm" onclick="clearLogs()">Clear</button>
+                </div>
+            </div>
+            <div class="log-container" id="logContainer">
+                <div class="empty-state">
+                    <div class="empty-icon">&#128229;</div>
+                    <div class="empty-text">No API calls yet</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Browse Modal -->
+    <div class="modal-overlay" id="browseModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Select Directory</h3>
+                <button class="modal-close" onclick="closeBrowseModal()">&times;</button>
+            </div>
+            <div class="modal-path">
+                <button class="btn btn-ghost btn-sm" onclick="navigateToParent()">&uarr;</button>
+                <input type="text" id="currentPath" readonly>
+            </div>
+            <div class="modal-content" id="browseContent"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeBrowseModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="selectDirectory()">Select</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let autoRefresh = true;
+        let accessToken = '';
+        let currentBrowsePath = '';
+
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/config');
+                const config = await response.json();
+
+                document.getElementById('proxyUrl').textContent = config.localBaseUrl;
+                document.getElementById('targetEndpoint').textContent = config.targetEndpoint;
+                document.getElementById('proxyMode').textContent = config.usePlaceholderMode ? 'Placeholder' : 'Proxy';
+
+                accessToken = config.accessToken;
+                const truncated = accessToken.substring(0, 16) + '...' + accessToken.slice(-6);
+                document.getElementById('accessTokenDisplay').textContent = truncated;
+
+                let authType = 'None';
+                if (config.devMode) authType = 'Dev Mode';
+                else if (config.oauthConfigured) authType = 'OAuth';
+                else if (config.apiKeyConfigured) authType = 'API Key';
+                document.getElementById('authType').textContent = authType;
+            } catch (error) {
+                console.error('Failed to load config:', error);
+            }
+        }
+
+        async function loadUsage() {
+            try {
+                const response = await fetch('/api/usage');
+                const usage = await response.json();
+
+                document.getElementById('totalRequests').textContent = formatNumber(usage.total_requests);
+                document.getElementById('successRate').textContent = usage.success_rate + '%';
+                document.getElementById('totalTokens').textContent = formatNumber(usage.total_tokens);
+                document.getElementById('avgLatency').textContent = Math.round(usage.avg_latency_ms) + 'ms';
+                document.getElementById('totalCost').textContent = '$' + usage.total_cost_usd.toFixed(2);
+            } catch (error) {
+                console.error('Failed to load usage:', error);
+            }
+        }
+
+        const expandedLogs = new Set();
+
+        async function loadLogs() {
+            try {
+                const response = await fetch('/api/logs/api-calls?limit=50');
+                const logs = await response.json();
+
+                const container = document.getElementById('logContainer');
+                document.getElementById('logCount').textContent = logs.length;
+
+                if (logs.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">&#128229;</div>
+                            <div class="empty-text">No API calls yet</div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = logs.map((log) => {
+                    const time = new Date(log.timestamp * 1000).toLocaleTimeString();
+                    const statusClass = log.status < 400 ? 'success' : 'error';
+                    const tokens = log.input_tokens + log.output_tokens;
+                    const logId = log.timestamp;
+                    const isExpanded = expandedLogs.has(logId);
+                    const cost = log.cost_usd || 0;
+
+                    let details = '';
+                    if (log.request || log.response) {
+                        details = '<div class="log-details" onclick="event.stopPropagation()">';
+                        if (log.request) {
+                            details += '<strong>Request:</strong>\n' + JSON.stringify(log.request, null, 2);
+                        }
+                        if (log.response) {
+                            if (log.request) details += '\n\n';
+                            details += '<strong>Response:</strong>\n' + JSON.stringify(log.response, null, 2);
+                        }
+                        details += '</div>';
+                    }
+
+                    return `
+                        <div class="log-entry${isExpanded ? ' expanded' : ''}" data-log-id="${logId}" onclick="toggleLogDetails(this)">
+                            <span class="log-time">${time}</span>
+                            <div class="log-content">
+                                <div class="log-main">
+                                    <span class="log-method">POST</span>
+                                    <span class="log-path">${log.path}</span>
+                                    <span class="log-status ${statusClass}">${log.status}</span>
+                                </div>
+                                ${details}
+                            </div>
+                            <div class="log-meta">
+                                ${tokens > 0 ? `<span class="log-tokens">${formatNumber(tokens)} tok</span>` : ''}
+                                ${cost > 0 ? `<span class="log-cost">$${cost.toFixed(4)}</span>` : ''}
+                                <span class="log-duration">${log.duration_ms}ms</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Failed to load logs:', error);
+            }
+        }
+
+        function toggleLogDetails(element) {
+            const logId = parseFloat(element.dataset.logId);
+            if (element.classList.toggle('expanded')) {
+                expandedLogs.add(logId);
+            } else {
+                expandedLogs.delete(logId);
+            }
+        }
+
+        function formatNumber(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+
+        function copyToken() {
+            navigator.clipboard.writeText(accessToken).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+            });
+        }
+
+        async function launchClaude() {
+            const workingDir = document.getElementById('workingDir').value || null;
+            try {
+                const response = await fetch('/api/claude/launch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ workingDirectory: workingDir })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('Claude Code launched! Check your terminal.');
+                } else {
+                    alert('Failed: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        function refreshLogs() {
+            loadLogs();
+            loadUsage();
+        }
+
+        async function clearLogs() {
+            if (!confirm('Clear all logs?')) return;
+            try {
+                await fetch('/api/logs', { method: 'DELETE' });
+                loadLogs();
+                loadUsage();
+            } catch (error) {
+                console.error('Failed to clear logs:', error);
+            }
+        }
+
+        async function openBrowseModal() {
+            document.getElementById('browseModal').classList.add('active');
+            const startPath = document.getElementById('workingDir').value || '~';
+            await loadDirectory(startPath);
+        }
+
+        function closeBrowseModal() {
+            document.getElementById('browseModal').classList.remove('active');
+        }
+
+        async function loadDirectory(path) {
+            try {
+                const response = await fetch('/api/browse?path=' + encodeURIComponent(path));
+                const data = await response.json();
+                if (data.error) { alert(data.error); return; }
+
+                currentBrowsePath = data.currentPath;
+                document.getElementById('currentPath').value = data.currentPath;
+
+                let html = '';
+                if (data.parentPath) {
+                    html += `<div class="browse-item parent" onclick="loadDirectory('${escapeHtml(data.parentPath)}')">
+                        <span class="browse-icon">&#128194;</span><span>..</span></div>`;
+                }
+
+                data.items.filter(item => item.isDirectory).forEach(item => {
+                    html += `<div class="browse-item" onclick="loadDirectory('${escapeHtml(item.path)}')">
+                        <span class="browse-icon">&#128193;</span><span>${escapeHtml(item.name)}</span></div>`;
+                });
+
+                document.getElementById('browseContent').innerHTML = html || '<div class="empty-state"><div class="empty-text">Empty</div></div>';
+            } catch (error) {
+                console.error('Failed to load directory:', error);
+            }
+        }
+
+        function navigateToParent() {
+            const currentPath = document.getElementById('currentPath').value;
+            const parentPath = currentPath.split('/').slice(0, -1).join('/') || '/';
+            loadDirectory(parentPath);
+        }
+
+        function selectDirectory() {
+            document.getElementById('workingDir').value = currentBrowsePath;
+            closeBrowseModal();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML.replace(/'/g, "\\'");
+        }
+
+        document.getElementById('browseModal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) closeBrowseModal();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeBrowseModal();
+        });
+
+        loadConfig();
+        loadUsage();
+        loadLogs();
+
+        setInterval(() => {
+            if (autoRefresh && expandedLogs.size === 0) {
+                loadLogs();
+                loadUsage();
+            }
+        }, 2000);
+    </script>
+</body>
+</html>
