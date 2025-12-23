@@ -276,6 +276,13 @@ def _handle_streaming(target_url, openai_request, headers, original_model,
     def generate():
         chunk_count = 0
         try:
+            # Send message_start immediately to prevent client timeout
+            # Claude Code may disconnect if it doesn't receive data quickly
+            message_start = translator._emit_message_start()
+            translator.state.message_started = True
+            yield message_start.encode('utf-8')
+            logger.debug("Sent immediate message_start to prevent client timeout")
+
             for chunk in response.iter_lines():
                 if chunk:
                     chunk_count += 1
