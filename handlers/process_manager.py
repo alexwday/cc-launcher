@@ -28,13 +28,17 @@ class ProcessManager:
         self.working_directory = working_directory or os.path.expanduser('~')
 
         # Build environment with proxy settings
+        # IMPORTANT: Claude Code uses ANTHROPIC_AUTH_TOKEN (not ANTHROPIC_API_KEY) for custom endpoints
+        # See: https://docs.anthropic.com/en/docs/claude-code/settings
         env = os.environ.copy()
         env['ANTHROPIC_BASE_URL'] = f'http://localhost:{self.proxy_port}'
+        env['ANTHROPIC_AUTH_TOKEN'] = self.proxy_token
+        # Also set API_KEY as fallback for older versions
         env['ANTHROPIC_API_KEY'] = self.proxy_token
 
         logger.info(f"Launching Claude Code in {self.working_directory}")
         logger.info(f"  ANTHROPIC_BASE_URL={env['ANTHROPIC_BASE_URL']}")
-        logger.info(f"  ANTHROPIC_API_KEY={self.proxy_token[:20]}...")
+        logger.info(f"  ANTHROPIC_AUTH_TOKEN={self.proxy_token[:20]}...")
 
         if sys.platform == 'darwin':
             self._launch_macos(env)
@@ -57,9 +61,11 @@ class ProcessManager:
         # Build environment export commands
         # Override HOME to completely isolate from user's config
         # Claude Code looks in ~/.claude/ which will now be empty
+        # IMPORTANT: Use ANTHROPIC_AUTH_TOKEN for custom endpoints (not just API_KEY)
         env_exports = (
             f"export HOME='{isolated_home}' && "
             f"export ANTHROPIC_BASE_URL='{env['ANTHROPIC_BASE_URL']}' && "
+            f"export ANTHROPIC_AUTH_TOKEN='{env['ANTHROPIC_AUTH_TOKEN']}' && "
             f"export ANTHROPIC_API_KEY='{env['ANTHROPIC_API_KEY']}' && "
             f"export DISABLE_AUTOUPDATER=1 && "
             f"export DISABLE_TELEMETRY=1"
@@ -94,7 +100,8 @@ class ProcessManager:
         ]
 
         # Build command string
-        env_exports = f"export ANTHROPIC_BASE_URL='{env['ANTHROPIC_BASE_URL']}' && export ANTHROPIC_API_KEY='{env['ANTHROPIC_API_KEY']}'"
+        # Use both AUTH_TOKEN (for custom endpoints) and API_KEY (fallback)
+        env_exports = f"export ANTHROPIC_BASE_URL='{env['ANTHROPIC_BASE_URL']}' && export ANTHROPIC_AUTH_TOKEN='{env['ANTHROPIC_AUTH_TOKEN']}' && export ANTHROPIC_API_KEY='{env['ANTHROPIC_API_KEY']}'"
         cmd_str = f"cd '{self.working_directory}' && {env_exports} && claude; exec bash"
 
         for name, base_cmd in terminals:
@@ -114,8 +121,8 @@ class ProcessManager:
 
     def _launch_windows(self, env: dict):
         """Launch in Windows Command Prompt."""
-        # Build command
-        cmd = f'cd /d "{self.working_directory}" && set ANTHROPIC_BASE_URL={env["ANTHROPIC_BASE_URL"]} && set ANTHROPIC_API_KEY={env["ANTHROPIC_API_KEY"]} && claude'
+        # Build command - use both AUTH_TOKEN and API_KEY
+        cmd = f'cd /d "{self.working_directory}" && set ANTHROPIC_BASE_URL={env["ANTHROPIC_BASE_URL"]} && set ANTHROPIC_AUTH_TOKEN={env["ANTHROPIC_AUTH_TOKEN"]} && set ANTHROPIC_API_KEY={env["ANTHROPIC_API_KEY"]} && claude'
 
         try:
             subprocess.Popen(['cmd', '/c', 'start', 'cmd', '/k', cmd], env=env)
@@ -137,6 +144,8 @@ class ProcessManager:
 # Create isolated home to avoid conflicts with your Claude subscription
 export HOME=$(mktemp -d)
 export ANTHROPIC_BASE_URL='http://localhost:{self.proxy_port}'
+# IMPORTANT: Claude Code uses ANTHROPIC_AUTH_TOKEN for custom endpoints
+export ANTHROPIC_AUTH_TOKEN='{self.proxy_token}'
 export ANTHROPIC_API_KEY='{self.proxy_token}'
 export DISABLE_AUTOUPDATER=1
 export DISABLE_TELEMETRY=1

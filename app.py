@@ -126,7 +126,7 @@ def main():
     print("  To use with Claude Code, set these environment variables:")
     print()
     print(f"    export ANTHROPIC_BASE_URL='http://localhost:{config.port}'")
-    print(f"    export ANTHROPIC_API_KEY='{config.proxy_access_token}'")
+    print(f"    export ANTHROPIC_AUTH_TOKEN='{config.proxy_access_token}'")
     print()
     print("=" * 60)
     print()

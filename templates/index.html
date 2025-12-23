@@ -560,9 +560,10 @@
                 document.getElementById('authType').textContent = authType;
 
                 // Update manual command
+                // IMPORTANT: Claude Code uses ANTHROPIC_AUTH_TOKEN for custom endpoints
                 document.getElementById('manualCommand').textContent =
 `export ANTHROPIC_BASE_URL='${config.localBaseUrl}'
-export ANTHROPIC_API_KEY='${config.accessToken}'
+export ANTHROPIC_AUTH_TOKEN='${config.accessToken}'
 claude`;
             } catch (error) {
                 console.error('Failed to load config:', error);
