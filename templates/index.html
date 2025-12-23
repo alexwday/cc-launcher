@@ -585,6 +585,9 @@ claude`;
             }
         }
 
+        // Track expanded log entries by their timestamp (unique ID)
+        const expandedLogs = new Set();
+
         // Load logs
         async function loadLogs() {
             try {
@@ -607,6 +610,9 @@ claude`;
                     const time = new Date(log.timestamp * 1000).toLocaleTimeString();
                     const statusClass = log.status < 400 ? 'success' : 'error';
                     const tokens = log.input_tokens + log.output_tokens;
+                    // Use timestamp as unique ID for tracking expansion
+                    const logId = log.timestamp;
+                    const isExpanded = expandedLogs.has(logId);
 
                     let details = '';
                     if (log.request || log.response) {
@@ -622,7 +628,7 @@ claude`;
                     }
 
                     return `
-                        <div class="log-entry" onclick="toggleLogDetails(this)">
+                        <div class="log-entry${isExpanded ? ' expanded' : ''}" data-log-id="${logId}" onclick="toggleLogDetails(this)">
                             <div class="log-header">
                                 <span class="log-timestamp">${time}</span>
                                 <span class="badge badge-post">POST</span>
@@ -641,7 +647,12 @@ claude`;
         }
 
         function toggleLogDetails(element) {
-            element.classList.toggle('expanded');
+            const logId = parseFloat(element.dataset.logId);
+            if (element.classList.toggle('expanded')) {
+                expandedLogs.add(logId);
+            } else {
+                expandedLogs.delete(logId);
+            }
         }
 
         function formatNumber(num) {

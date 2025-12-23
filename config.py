@@ -57,45 +57,61 @@ class Config:
         """
         Map Claude model name to target model name.
 
-        Supports partial matching to handle dated model names like 'claude-sonnet-4-5-20250514'.
+        Supports flexible matching for dated model names like 'claude-sonnet-4-5-20250929'.
+        Normalizes dots/dashes for comparison (4.5 matches 4-5).
         """
         claude_model_lower = claude_model.lower()
+        # Normalize: treat dots and dashes as equivalent for matching
+        claude_model_normalized = claude_model_lower.replace('.', '-')
+
+        logger.info(f"Model mapping: input={claude_model}")
 
         # Check for exact mapping first
         if claude_model in self.model_mapping:
             mapped = self.model_mapping[claude_model]
-            logger.debug(f"Model mapping (exact): {claude_model} -> {mapped}")
+            logger.info(f"Model mapping (exact): {claude_model} -> {mapped}")
             return mapped
 
-        # Check for partial matches in the mapping keys
+        # Check for partial matches in the mapping keys (normalize both sides)
         for source, target in self.model_mapping.items():
-            if source.lower() in claude_model_lower or claude_model_lower in source.lower():
-                logger.debug(f"Model mapping (partial): {claude_model} -> {target}")
+            source_normalized = source.lower().replace('.', '-')
+            if source_normalized in claude_model_normalized or claude_model_normalized in source_normalized:
+                logger.info(f"Model mapping (partial): {claude_model} -> {target}")
                 return target
 
-        # Fallback: Check for common model patterns
-        # This handles cases like "claude-sonnet-4-5-20250514" -> look for "sonnet-4.5" or "opus"
-        if 'sonnet-4-5' in claude_model_lower or 'sonnet-4.5' in claude_model_lower:
-            if 'sonnet-4.5' in self.model_mapping.values() or any('sonnet' in v.lower() and '4.5' in v for v in self.model_mapping.values()):
-                for source, target in self.model_mapping.items():
-                    if 'sonnet' in target.lower() and ('4.5' in target or '4-5' in target):
-                        logger.debug(f"Model mapping (fallback sonnet-4.5): {claude_model} -> {target}")
-                        return target
-
-        if 'opus-4' in claude_model_lower or 'opus4' in claude_model_lower:
+        # Fallback: Pattern-based matching for common Claude model families
+        # Sonnet 4.5 / 4-5 (the latest Sonnet)
+        if 'sonnet-4-5' in claude_model_normalized or 'sonnet-4.5' in claude_model_lower:
             for source, target in self.model_mapping.items():
-                if 'opus' in target.lower():
-                    logger.debug(f"Model mapping (fallback opus): {claude_model} -> {target}")
+                source_norm = source.lower().replace('.', '-')
+                if 'sonnet' in source_norm and '4-5' in source_norm:
+                    logger.info(f"Model mapping (fallback sonnet-4.5): {claude_model} -> {target}")
                     return target
 
-        if 'sonnet-4' in claude_model_lower and 'sonnet-4-5' not in claude_model_lower:
+        # Opus 4 / 4.1 (the latest Opus)
+        if 'opus-4' in claude_model_normalized or 'opus4' in claude_model_lower:
             for source, target in self.model_mapping.items():
-                if 'sonnet' in target.lower() and '4.5' not in target and '4-5' not in target:
-                    logger.debug(f"Model mapping (fallback sonnet-4): {claude_model} -> {target}")
+                if 'opus' in source.lower():
+                    logger.info(f"Model mapping (fallback opus): {claude_model} -> {target}")
+                    return target
+
+        # Sonnet 4 (not 4.5)
+        if 'sonnet-4' in claude_model_normalized and 'sonnet-4-5' not in claude_model_normalized:
+            for source, target in self.model_mapping.items():
+                source_norm = source.lower().replace('.', '-')
+                if 'sonnet' in source_norm and '4-5' not in source_norm and '4' in source_norm:
+                    logger.info(f"Model mapping (fallback sonnet-4): {claude_model} -> {target}")
+                    return target
+
+        # Haiku
+        if 'haiku' in claude_model_lower:
+            for source, target in self.model_mapping.items():
+                if 'haiku' in source.lower():
+                    logger.info(f"Model mapping (fallback haiku): {claude_model} -> {target}")
                     return target
 
         # Pass through unchanged
-        logger.debug(f"No model mapping for {claude_model}, passing through")
+        logger.warning(f"No model mapping for {claude_model}, passing through unchanged")
         return claude_model
 
     def _generate_token(self) -> str:
