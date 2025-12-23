@@ -279,8 +279,20 @@ def _handle_streaming(target_url, openai_request, headers, original_model,
         except GeneratorExit:
             logger.warning("Client disconnected during stream")
         except Exception as e:
+            import json
+            import traceback
             logger.error(f"Streaming error: {e}")
-            error_event = f"event: error\ndata: {{\"type\":\"error\",\"error\":{{\"type\":\"api_error\",\"message\":\"{e}\"}}}}\n\n"
+            logger.error(traceback.format_exc())
+            # Properly escape the error message for JSON
+            error_msg = str(e).replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+            error_data = {
+                "type": "error",
+                "error": {
+                    "type": "api_error",
+                    "message": error_msg
+                }
+            }
+            error_event = f"event: error\ndata: {json.dumps(error_data)}\n\n"
             yield error_event.encode('utf-8')
         finally:
             response.close()

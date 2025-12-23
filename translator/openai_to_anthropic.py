@@ -95,20 +95,39 @@ def translate_response(
 
 
 def translate_error(
-    openai_error: Dict[str, Any],
+    error_response: Dict[str, Any],
     status_code: int = 500
 ) -> Dict[str, Any]:
     """
-    Translate an OpenAI error response to Anthropic format.
+    Translate an error response to Anthropic format.
+
+    Handles both OpenAI and Anthropic error formats (some backends return Anthropic errors).
 
     Args:
-        openai_error: The OpenAI error response
+        error_response: The error response (could be OpenAI or Anthropic format)
         status_code: HTTP status code
 
     Returns:
         Anthropic-compatible error response
     """
-    error_info = openai_error.get('error', {})
+    logger.debug(f"Translating error response: {error_response}")
+
+    # Check if already in Anthropic format
+    if error_response.get('type') == 'error' and 'error' in error_response:
+        # Already Anthropic format, return as-is
+        return error_response
+
+    # Extract error info - could be nested in 'error' key (OpenAI) or at top level
+    error_info = error_response.get('error', {})
+    if isinstance(error_info, str):
+        # Some APIs return error as a string
+        return {
+            'type': 'error',
+            'error': {
+                'type': 'api_error',
+                'message': error_info
+            }
+        }
 
     # Map OpenAI error types to Anthropic types
     error_type_map = {
@@ -121,14 +140,28 @@ def translate_error(
         'timeout': 'overloaded_error',
     }
 
-    openai_type = error_info.get('type', 'api_error')
+    # Try to get error type from various places
+    openai_type = (
+        error_info.get('type') or
+        error_info.get('code') or
+        error_response.get('type') or
+        'api_error'
+    )
     anthropic_type = error_type_map.get(openai_type, 'api_error')
+
+    # Try to get error message from various places
+    error_message = (
+        error_info.get('message') or
+        error_response.get('message') or
+        error_response.get('detail') or
+        str(error_response) if not error_info else 'An error occurred'
+    )
 
     return {
         'type': 'error',
         'error': {
             'type': anthropic_type,
-            'message': error_info.get('message', 'An error occurred')
+            'message': error_message
         }
     }
 

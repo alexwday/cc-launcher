@@ -62,7 +62,11 @@ class StreamTranslator:
         events = []
 
         # Parse the chunk
-        chunk_str = openai_chunk.decode('utf-8').strip()
+        try:
+            chunk_str = openai_chunk.decode('utf-8').strip()
+        except Exception as e:
+            logger.error(f"Failed to decode chunk: {e}")
+            return events
 
         # Skip empty lines
         if not chunk_str:
@@ -75,12 +79,28 @@ class StreamTranslator:
 
         # Parse data payload
         if not chunk_str.startswith('data: '):
+            # Log unexpected chunk format
+            logger.debug(f"Unexpected chunk format: {chunk_str[:100]}")
             return events
 
         try:
             data = json.loads(chunk_str[6:])  # Skip "data: "
         except json.JSONDecodeError as e:
-            logger.debug(f"Failed to parse chunk: {e}")
+            logger.warning(f"Failed to parse chunk JSON: {e}, chunk: {chunk_str[:200]}")
+            return events
+
+        # Check for error in stream (some APIs send errors via SSE)
+        if 'error' in data:
+            logger.error(f"Error in stream data: {data['error']}")
+            error_msg = data['error'].get('message', str(data['error']))
+            error_event = {
+                "type": "error",
+                "error": {
+                    "type": "api_error",
+                    "message": error_msg
+                }
+            }
+            events.append(f"event: error\ndata: {json.dumps(error_event)}\n\n")
             return events
 
         # Extract delta from choices
