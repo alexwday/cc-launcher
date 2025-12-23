@@ -114,8 +114,11 @@ def messages():
             config.map_model_name,
             config.default_max_tokens
         )
+        logger.info(f"Translated request: model={openai_request.get('model')}, messages={len(openai_request.get('messages', []))}")
     except Exception as e:
+        import traceback
         logger.error(f"Translation error: {e}")
+        logger.error(traceback.format_exc())
         error = {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': f'Translation error: {e}'}}
         duration_ms = int((time.time() - start_time) * 1000)
         log_manager.log_api_call('POST', '/v1/messages', 400, duration_ms, anthropic_request, error)
@@ -233,22 +236,35 @@ def _handle_non_streaming(target_url, openai_request, headers, original_model,
 def _handle_streaming(target_url, openai_request, headers, original_model,
                       anthropic_request, start_time, config, log_manager):
     """Handle streaming request/response."""
-    response = requests.post(
-        target_url,
-        json=openai_request,
-        headers=headers,
-        timeout=600,
-        stream=True,
-        verify=config.get_verify_ssl()
-    )
+    logger.info(f"Sending streaming request to {target_url}")
+
+    try:
+        response = requests.post(
+            target_url,
+            json=openai_request,
+            headers=headers,
+            timeout=600,
+            stream=True,
+            verify=config.get_verify_ssl()
+        )
+    except Exception as e:
+        import traceback
+        logger.error(f"Failed to connect to target: {e}")
+        logger.error(traceback.format_exc())
+        raise
+
+    logger.info(f"Target response status: {response.status_code}")
 
     if not response.ok:
         duration_ms = int((time.time() - start_time) * 1000)
         try:
+            error_text = response.text
+            logger.error(f"Target error response: {error_text[:1000]}")
             error_data = response.json()
         except:
             error_data = {'error': {'message': response.text or 'Unknown error'}}
 
+        logger.error(f"Target error data: {error_data}")
         anthropic_error = translate_error(error_data, response.status_code)
         log_manager.log_api_call('POST', '/v1/messages', response.status_code, duration_ms,
                                 anthropic_request, anthropic_error)
@@ -258,9 +274,14 @@ def _handle_streaming(target_url, openai_request, headers, original_model,
     translator = StreamTranslator(original_model)
 
     def generate():
+        chunk_count = 0
         try:
             for chunk in response.iter_lines():
                 if chunk:
+                    chunk_count += 1
+                    # Log first few chunks for debugging
+                    if chunk_count <= 3:
+                        logger.debug(f"Received chunk {chunk_count}: {chunk[:200]}")
                     # Translate OpenAI chunk to Anthropic events
                     events = translator.translate_chunk(chunk)
                     for event in events:
@@ -281,17 +302,21 @@ def _handle_streaming(target_url, openai_request, headers, original_model,
         except Exception as e:
             import json
             import traceback
+            tb = traceback.format_exc()
             logger.error(f"Streaming error: {e}")
-            logger.error(traceback.format_exc())
-            # Properly escape the error message for JSON
-            error_msg = str(e).replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+            logger.error(tb)
+            # Log the error to dashboard
+            duration_ms = int((time.time() - start_time) * 1000)
             error_data = {
                 "type": "error",
                 "error": {
                     "type": "api_error",
-                    "message": error_msg
+                    "message": str(e),
+                    "traceback": tb
                 }
             }
+            log_manager.log_api_call('POST', '/v1/messages', 500, duration_ms,
+                                    anthropic_request, error_data)
             error_event = f"event: error\ndata: {json.dumps(error_data)}\n\n"
             yield error_event.encode('utf-8')
         finally:
