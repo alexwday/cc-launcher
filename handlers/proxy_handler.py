@@ -305,7 +305,9 @@ def _handle_streaming(target_url, openai_request, headers, original_model,
             logger.info(f"<- stream complete | tokens={usage.get('input_tokens', 0)}+{usage.get('output_tokens', 0)}")
 
         except GeneratorExit:
-            logger.warning("Client disconnected during stream")
+            # This is normal - Claude Code may disconnect streams it no longer needs
+            # (e.g., parallel requests where only one response is used)
+            logger.debug("Client disconnected during stream (normal if parallel requests)")
         except Exception as e:
             import json
             import traceback
