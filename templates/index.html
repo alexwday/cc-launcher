@@ -712,9 +712,10 @@ claude`;
         loadUsage();
         loadLogs();
 
-        // Auto-refresh every 2 seconds
+        // Auto-refresh every 2 seconds (pauses when logs are expanded)
         setInterval(() => {
-            if (autoRefresh) {
+            // Pause refresh if any logs are expanded (so user can read them)
+            if (autoRefresh && expandedLogs.size === 0) {
                 loadLogs();
                 loadUsage();
             }
