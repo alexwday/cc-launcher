@@ -92,7 +92,13 @@ class StreamTranslator:
         # Check for error in stream (some APIs send errors via SSE)
         if 'error' in data:
             logger.error(f"Error in stream data: {data['error']}")
-            error_msg = data['error'].get('message', str(data['error']))
+            error_obj = data['error']
+            if isinstance(error_obj, str):
+                error_msg = error_obj
+            elif isinstance(error_obj, dict):
+                error_msg = error_obj.get('message', str(error_obj))
+            else:
+                error_msg = str(error_obj)
             error_event = {
                 "type": "error",
                 "error": {
@@ -140,32 +146,45 @@ class StreamTranslator:
             for tc_delta in delta['tool_calls']:
                 tc_index = tc_delta.get('index', 0)
 
-                # New tool call
+                # New tool call - initialize but DON'T emit content_block_start yet
+                # We need to wait until we have the function name
                 if tc_index not in self.state.accumulated_tool_calls:
-                    # End previous content block if any
-                    if self.state.content_block_started and self.state.current_block_type == 'text':
-                        events.append(self._emit_content_block_stop())
-                        self.state.current_block_index += 1
-
                     self.state.accumulated_tool_calls[tc_index] = {
                         'id': tc_delta.get('id', f'toolu_{uuid.uuid4().hex[:24]}'),
                         'name': '',
-                        'input_json': ''
+                        'input_json': '',
+                        'block_started': False  # Track if we've emitted content_block_start
                     }
-
-                    # Start tool_use block
-                    events.append(self._emit_content_block_start('tool_use', tc_index))
-                    self.state.content_block_started = True
-                    self.state.current_block_type = 'tool_use'
 
                 # Accumulate tool call data
                 tc_data = self.state.accumulated_tool_calls[tc_index]
+
+                # Update ID if provided
+                if 'id' in tc_delta:
+                    tc_data['id'] = tc_delta['id']
+
                 if 'function' in tc_delta:
                     if 'name' in tc_delta['function']:
                         tc_data['name'] = tc_delta['function']['name']
+
+                    # Once we have the name, we can emit content_block_start
+                    if tc_data['name'] and not tc_data['block_started']:
+                        # End previous content block if any
+                        if self.state.content_block_started and self.state.current_block_type == 'text':
+                            events.append(self._emit_content_block_stop())
+                            self.state.current_block_index += 1
+
+                        # Now emit content_block_start with the name
+                        events.append(self._emit_content_block_start('tool_use', tc_index))
+                        self.state.content_block_started = True
+                        self.state.current_block_type = 'tool_use'
+                        tc_data['block_started'] = True
+
                     if 'arguments' in tc_delta['function']:
                         tc_data['input_json'] += tc_delta['function']['arguments']
-                        events.append(self._emit_input_json_delta(tc_delta['function']['arguments']))
+                        # Only emit delta if block has started
+                        if tc_data['block_started']:
+                            events.append(self._emit_input_json_delta(tc_delta['function']['arguments']))
 
         # Handle finish_reason
         if finish_reason:
