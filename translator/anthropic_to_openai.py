@@ -48,9 +48,13 @@ def translate_request(
 
     # Translate messages
     for msg in anthropic_request.get('messages', []):
-        translated_msg = _translate_message(msg)
-        if translated_msg:
-            messages.append(translated_msg)
+        translated = _translate_message(msg)
+        if translated:
+            # _translate_message can return a list (e.g., user message with embedded tool_results)
+            if isinstance(translated, list):
+                messages.extend(translated)
+            else:
+                messages.append(translated)
 
     openai_request['messages'] = messages
 
@@ -107,8 +111,13 @@ def _translate_message(msg: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _translate_user_message(msg: Dict[str, Any]) -> Dict[str, Any]:
-    """Translate a user message."""
+def _translate_user_message(msg: Dict[str, Any]) -> Any:
+    """
+    Translate a user message.
+
+    Returns either a single message dict or a list of messages
+    (when tool_results are embedded and need to be extracted as separate tool messages).
+    """
     content = msg.get('content')
 
     # Simple string content
@@ -117,28 +126,34 @@ def _translate_user_message(msg: Dict[str, Any]) -> Dict[str, Any]:
 
     # Content blocks array
     if isinstance(content, list):
-        # Check if it's just text blocks
-        all_text = all(
-            block.get('type') == 'text' for block in content
-            if isinstance(block, dict)
-        )
+        # Separate tool_results from other content
+        tool_results = []
+        other_content = []
 
-        if all_text:
-            # Combine into single string
-            text = ' '.join(
-                block.get('text', '') for block in content
-                if isinstance(block, dict) and block.get('type') == 'text'
-            )
-            return {'role': 'user', 'content': text}
-
-        # Mixed content (text + images) - translate to OpenAI content array
-        openai_content = []
         for block in content:
             if not isinstance(block, dict):
                 continue
 
-            if block.get('type') == 'text':
-                openai_content.append({
+            if block.get('type') == 'tool_result':
+                # Extract tool_result as separate OpenAI tool message
+                tool_use_id = block.get('tool_use_id', '')
+                tool_content = block.get('content', '')
+                is_error = block.get('is_error', False)
+
+                # Content can be string or array of content blocks
+                if isinstance(tool_content, list):
+                    tool_content = ' '.join(
+                        b.get('text', '') for b in tool_content
+                        if isinstance(b, dict) and b.get('type') == 'text'
+                    )
+
+                tool_results.append({
+                    'role': 'tool',
+                    'tool_call_id': tool_use_id,
+                    'content': str(tool_content) if not is_error else f"Error: {tool_content}"
+                })
+            elif block.get('type') == 'text':
+                other_content.append({
                     'type': 'text',
                     'text': block.get('text', '')
                 })
@@ -146,26 +161,36 @@ def _translate_user_message(msg: Dict[str, Any]) -> Dict[str, Any]:
                 # Anthropic image format
                 source = block.get('source', {})
                 if source.get('type') == 'base64':
-                    openai_content.append({
+                    other_content.append({
                         'type': 'image_url',
                         'image_url': {
                             'url': f"data:{source.get('media_type', 'image/png')};base64,{source.get('data', '')}"
                         }
                     })
-            elif block.get('type') == 'tool_result':
-                # Tool result embedded in user message (Claude Code pattern)
-                tool_result_content = block.get('content', '')
-                if isinstance(tool_result_content, list):
-                    tool_result_content = ' '.join(
-                        b.get('text', '') for b in tool_result_content
-                        if isinstance(b, dict) and b.get('type') == 'text'
-                    )
-                openai_content.append({
-                    'type': 'text',
-                    'text': f"[Tool Result: {tool_result_content}]"
-                })
 
-        return {'role': 'user', 'content': openai_content if len(openai_content) > 1 else openai_content[0].get('text', '') if openai_content else ''}
+        # Build result: tool messages first (they respond to previous assistant's tool_calls),
+        # then user message with remaining content
+        result = []
+
+        # Add tool result messages first
+        result.extend(tool_results)
+
+        # Add user message if there's non-tool content
+        if other_content:
+            if len(other_content) == 1 and other_content[0].get('type') == 'text':
+                # Simple text content
+                result.append({'role': 'user', 'content': other_content[0].get('text', '')})
+            else:
+                # Mixed content array
+                result.append({'role': 'user', 'content': other_content})
+
+        # Return single message or list
+        if len(result) == 1:
+            return result[0]
+        elif len(result) > 1:
+            return result
+        else:
+            return {'role': 'user', 'content': ''}
 
     return {'role': 'user', 'content': str(content)}
 
