@@ -276,13 +276,6 @@ def _handle_streaming(target_url, openai_request, headers, original_model,
     def generate():
         chunk_count = 0
         try:
-            # Send message_start immediately to prevent client timeout
-            # Claude Code may disconnect if it doesn't receive data quickly
-            message_start = translator._emit_message_start()
-            translator.state.message_started = True
-            yield message_start.encode('utf-8')
-            logger.debug("Sent immediate message_start to prevent client timeout")
-
             for chunk in response.iter_lines():
                 if chunk:
                     chunk_count += 1
@@ -290,6 +283,7 @@ def _handle_streaming(target_url, openai_request, headers, original_model,
                     if chunk_count <= 3:
                         logger.debug(f"Received chunk {chunk_count}: {chunk[:200]}")
                     # Translate OpenAI chunk to Anthropic events
+                    # translator handles message_start on first content automatically
                     events = translator.translate_chunk(chunk)
                     for event in events:
                         yield event.encode('utf-8')
