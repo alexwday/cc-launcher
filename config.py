@@ -57,12 +57,12 @@ class Config:
         """
         Map Claude model name to target model name.
 
-        Supports flexible matching for dated model names like 'claude-sonnet-4-5-20250929'.
-        Normalizes dots/dashes for comparison (4.5 matches 4-5).
+        Simple family-based matching:
+        - Any model containing 'sonnet' -> sonnet mapping
+        - Any model containing 'opus' -> opus mapping
+        - Any model containing 'haiku' -> haiku mapping
         """
         claude_model_lower = claude_model.lower()
-        # Normalize: treat dots and dashes as equivalent for matching
-        claude_model_normalized = claude_model_lower.replace('.', '-')
 
         logger.info(f"Model mapping: input={claude_model}")
 
@@ -72,43 +72,26 @@ class Config:
             logger.info(f"Model mapping (exact): {claude_model} -> {mapped}")
             return mapped
 
-        # Check for partial matches in the mapping keys (normalize both sides)
-        for source, target in self.model_mapping.items():
-            source_normalized = source.lower().replace('.', '-')
-            if source_normalized in claude_model_normalized or claude_model_normalized in source_normalized:
-                logger.info(f"Model mapping (partial): {claude_model} -> {target}")
-                return target
+        # Simple family-based matching: look for model family keywords
+        # Order matters: check more specific families first
 
-        # Fallback: Pattern-based matching for common Claude model families
-        # Sonnet 4.5 / 4-5 (the latest Sonnet)
-        if 'sonnet-4-5' in claude_model_normalized or 'sonnet-4.5' in claude_model_lower:
-            for source, target in self.model_mapping.items():
-                source_norm = source.lower().replace('.', '-')
-                if 'sonnet' in source_norm and '4-5' in source_norm:
-                    logger.info(f"Model mapping (fallback sonnet-4.5): {claude_model} -> {target}")
-                    return target
-
-        # Opus 4 / 4.1 (the latest Opus)
-        if 'opus-4' in claude_model_normalized or 'opus4' in claude_model_lower:
-            for source, target in self.model_mapping.items():
-                if 'opus' in source.lower():
-                    logger.info(f"Model mapping (fallback opus): {claude_model} -> {target}")
-                    return target
-
-        # Sonnet 4 (not 4.5)
-        if 'sonnet-4' in claude_model_normalized and 'sonnet-4-5' not in claude_model_normalized:
-            for source, target in self.model_mapping.items():
-                source_norm = source.lower().replace('.', '-')
-                if 'sonnet' in source_norm and '4-5' not in source_norm and '4' in source_norm:
-                    logger.info(f"Model mapping (fallback sonnet-4): {claude_model} -> {target}")
-                    return target
-
-        # Haiku
+        # Haiku family
         if 'haiku' in claude_model_lower:
-            for source, target in self.model_mapping.items():
-                if 'haiku' in source.lower():
-                    logger.info(f"Model mapping (fallback haiku): {claude_model} -> {target}")
-                    return target
+            if 'haiku' in self.model_mapping:
+                logger.info(f"Model mapping (haiku): {claude_model} -> {self.model_mapping['haiku']}")
+                return self.model_mapping['haiku']
+
+        # Opus family
+        if 'opus' in claude_model_lower:
+            if 'opus' in self.model_mapping:
+                logger.info(f"Model mapping (opus): {claude_model} -> {self.model_mapping['opus']}")
+                return self.model_mapping['opus']
+
+        # Sonnet family (check last as it's most common)
+        if 'sonnet' in claude_model_lower:
+            if 'sonnet' in self.model_mapping:
+                logger.info(f"Model mapping (sonnet): {claude_model} -> {self.model_mapping['sonnet']}")
+                return self.model_mapping['sonnet']
 
         # Pass through unchanged
         logger.warning(f"No model mapping for {claude_model}, passing through unchanged")
